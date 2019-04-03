@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import threading
 import functools
 import pyopencl as cl
@@ -6,10 +7,12 @@ import math
 import time
 import cv2
 
+# There's so many global variables I hate it
+
 platform = cl.get_platforms()[0]
 print(platform.get_devices())
 
-ctx = cl.create_some_context(interactive = False)
+ctx = cl.create_some_context(interactive=False)
 queue = cl.CommandQueue(ctx)
 
 def readProgram(filename):
@@ -18,12 +21,9 @@ def readProgram(filename):
     return prg
 
 mf = cl.mem_flags
-# SIZE = 600
 XSIZE, YSIZE = 2000, 2000
 XDSIZE, YDSIZE = XSIZE, YSIZE
 STEPSIZE = 100 # WASD step size
-# XDSIZE, YDSIZE = XSIZE, YSIZE
-#a = np.ascontiguousarray(np.ones((600, 600), dtype=np.int32) * -1, dtype=np.int32)
 a = np.ascontiguousarray(np.ones((XSIZE, YSIZE), dtype=np.int32) * -1)
 abuf = cl.Buffer(ctx, mf.WRITE_ONLY, a.nbytes)
 imgarr = np.ascontiguousarray(np.ndarray((XSIZE, YSIZE, 3), dtype=np.uint8))
@@ -31,60 +31,15 @@ imgbuf = cl.Buffer(ctx, mf.WRITE_ONLY, imgarr.nbytes)
 
 prg = readProgram("mandelbrot.cl")
 
-def getPix(x, y):
-    c = ()
-    while abs(z) < 2 and iters < 10:
-        z = z**2 + c
-        iters += 1
-    print(a)
-    return iters
-
-def normalize():
-    mx = 0
-    mn = iters + 2
-    for row in a:
-        for col in row:
-            mn = min(mn, col)
-            mx = max(mx, col)
-    print (mn, mx)
-    norm = lambda a: (a - mn) * (255 / (mx - mn))
-    for x in range(XSIZE):
-        for y in range(YSIZE):
-            a[x][y] = norm(a[x][y])
-
 def calcFracCL():
     if precision == 0:
         prg.pixel32(queue, a.shape, None, abuf, np.float32(cx), np.float32(cy), np.int64(zoom), np.int32(iters), np.float32(s), np.float32(p), np.int32(XSIZE), np.int32(YSIZE)).wait()
     elif precision == 1:
         prg.pixel64(queue, a.shape, None, abuf, np.float64(cx), np.float64(cy), np.int64(zoom), np.int32(iters), np.float32(s), np.float32(p), np.int32(XSIZE), np.int32(YSIZE)).wait()
-    else:
-        prg.pixelHighPrecision(queue, a.shape, None, abuf, np.float64(cx), np.float64(cy), np.int64(zoom), np.int32(iters)).wait()
-    # cl.enqueue_read_buffer(queue, abuf, a).wait()
     cl.enqueue_copy(queue, a, abuf).wait()
     min, max = a.min(), a.max()
     prg.color(queue, imgarr.shape, None, imgbuf, abuf, np.int32(min), np.int32(max), np.int32(XSIZE), np.int32(YSIZE))
-    # cl.enqueue_read_buffer(queue, imgbuf, imgarr).wait()
     cl.enqueue_copy(queue, imgarr, imgbuf).wait()
-
-def fracHighPrecision():
-    prg.pixelHighPrecision(queue, a.shape, None, abuf, np.float64(cx), np.float64(cy), np.int64(zoom), np.int32(iters)).wait()
-
-def calcFrac():
-    global renderTime
-    s = time.time()
-    calcFracCL()
-    e = time.time()
-    renderTime = e-s
-##    print(e-s)
-##    normalize()
-    i = Image.fromarray(imgarr, 'HSV').convert('RGB')
-    i = i.resize((XDSIZE, YDSIZE), Image.ANTIALIAS)
-    #i.save('tmp.png')
-    return i
-
-def changeZoom(evt):
-    global zoom, iters, cx, cy, precision, itk, oldi, s, p, oldThread, calculatedImage
-
 
 def main():
     global s, p, zoom, iters, precision, cx, cy, renderTime, root, c, oldi, timeText, itk, oldThread
@@ -95,7 +50,6 @@ def main():
     precision = 0
     cx, cy = 0.3306736862509997, 0.42686190053779904
     while True:
-        # calculatedImage = calcFrac()
         a = time.time()
         calcFracCL()
         renderTime = time.time() - a
@@ -106,10 +60,8 @@ def main():
             zoom = int(zoom / 2)
             if zoom == 0:
                 zoom = 1
-            # iters = math.pow((math.log(zoom, 2) * 3), 1.8)
         elif key == 85: # page down
             zoom *= 2
-            # iters = math.pow((math.log(zoom, 2) * 3), 1.8)
         elif key == 82: # up arrow
             iters *= 2
         elif key == 84: # down arrow
