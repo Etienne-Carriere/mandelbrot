@@ -1,16 +1,15 @@
-from tkinter import Tk, Canvas
 import threading
 import functools
-from PIL import Image, ImageTk
 import pyopencl as cl
 import numpy as np
 import math
 import time
+import cv2
 
 platform = cl.get_platforms()[0]
 print(platform.get_devices())
 
-ctx = cl.create_some_context(interactive = True)
+ctx = cl.create_some_context(interactive = False)
 queue = cl.CommandQueue(ctx)
 
 def readProgram(filename):
@@ -22,6 +21,7 @@ mf = cl.mem_flags
 # SIZE = 600
 XSIZE, YSIZE = 2000, 2000
 XDSIZE, YDSIZE = XSIZE, YSIZE
+STEPSIZE = 100 # WASD step size
 # XDSIZE, YDSIZE = XSIZE, YSIZE
 #a = np.ascontiguousarray(np.ones((600, 600), dtype=np.int32) * -1, dtype=np.int32)
 a = np.ascontiguousarray(np.ones((XSIZE, YSIZE), dtype=np.int32) * -1)
@@ -68,7 +68,6 @@ def calcFracCL():
 
 def fracHighPrecision():
     prg.pixelHighPrecision(queue, a.shape, None, abuf, np.float64(cx), np.float64(cy), np.int64(zoom), np.int32(iters)).wait()
-    l
 
 def calcFrac():
     global renderTime
@@ -85,60 +84,7 @@ def calcFrac():
 
 def changeZoom(evt):
     global zoom, iters, cx, cy, precision, itk, oldi, s, p, oldThread, calculatedImage
-    if evt.keysym == 'Next':
-        zoom = int(zoom / 2)
-        if zoom == 0:
-            zoom = 1
-        # iters = math.pow((math.log(zoom, 2) * 3), 1.8)
-    if evt.keysym == 'Prior':
-        zoom *= 2
-        # iters = math.pow((math.log(zoom, 2) * 3), 1.8)
-    if evt.keysym == 'Up':
-        iters *= 2
-    if evt.keysym == 'Down':
-        if iters >= 2:
-            iters /= 2
-    if evt.keysym == 'w':
-        cx -= (50 / zoom)
-    if evt.keysym == 's':
-        cx += (50 / zoom)
-    if evt.keysym == 'a':
-        cy -= (50 / zoom)
-    if evt.keysym == 'd':
-        cy += (50 / zoom)
-    if evt.keysym == 'f':
-        precision += 1
-        precision %= 2
-    if evt.keysym == 'Left':
-        s += 0.01
-    if evt.keysym == 'Right':
-        s -= 0.01
-    if evt.keysym == 'End':
-        p += 0.01
-    if evt.keysym == 'Home':
-        p -= 0.01
-    print('Iters:%i Zoom:%i Center:(%f,%f) Precision:%i s:%f' % (iters, zoom, cx, cy, precision, s))
-    # if oldThread is not None:
-    #     oldThread.join()
-    # oldThread = threading.Thread(target=otherThread)
-    # oldThread.start()
-    calculatedImage = calcFrac()
-    root.after(1, updateCanvas)
 
-def otherThread():
-    global calculatedImage
-    calculatedImage = calcFrac()
-    root.after(1, updateCanvas)
-    print("THREAD DOME")
-
-def updateCanvas():
-    global itk, c, oldi, root, calculatedImage
-    itk = ImageTk.PhotoImage(image=calculatedImage)
-    c.delete(oldi)
-    oldi = c.create_image(XDSIZE/2, YDSIZE/2, image=itk)
-    c.itemconfig(timeText, text=str(round(renderTime * 1000)) + "ms")
-    c.lift(timeText)
-    # c.update()
 
 def main():
     global s, p, zoom, iters, precision, cx, cy, renderTime, root, c, oldi, timeText, itk, oldThread
@@ -148,23 +94,52 @@ def main():
     iters = 32
     precision = 0
     cx, cy = 0.3306736862509997, 0.42686190053779904
-    renderTime = 0
-    oldThread = None
-    root = Tk()
-    root.title("float")
-    root.bind("<KeyPress>", changeZoom)
-    c = Canvas(root, width=XDSIZE, height=YDSIZE)
-    c.pack()
-    itk = ImageTk.PhotoImage(image = calcFrac())
-    oldi = c.create_image(XSIZE/2, YSIZE/2, image=itk)
-    timeText = c.create_text(550, 50, text=str(round(renderTime * 1000)) + "ms", fill="#1111CC")
-    t = 0
-    calcFrac()
-    print(a)
-    try:
-        root.mainloop()
-    finally:
-        abuf.release()
+    while True:
+        # calculatedImage = calcFrac()
+        a = time.time()
+        calcFracCL()
+        renderTime = time.time() - a
+        img = cv2.cvtColor(imgarr, cv2.COLOR_HSV2BGR)
+        cv2.imshow('float', img)
+        key = cv2.waitKey(0)
+        if key == 86: # page up
+            zoom = int(zoom / 2)
+            if zoom == 0:
+                zoom = 1
+            # iters = math.pow((math.log(zoom, 2) * 3), 1.8)
+        elif key == 85: # page down
+            zoom *= 2
+            # iters = math.pow((math.log(zoom, 2) * 3), 1.8)
+        elif key == 82: # up arrow
+            iters *= 2
+        elif key == 84: # down arrow
+            if iters >= 2:
+                iters /= 2
+        elif key == 119: # 'w'
+            cx -= (STEPSIZE / zoom)
+        elif key == 115: # s
+            cx += (STEPSIZE / zoom)
+        elif key == 97: # a
+            cy -= (STEPSIZE / zoom)
+        elif key == 100: # d
+            cy += (STEPSIZE / zoom)
+        elif key == 102: # f
+            precision += 1
+            precision %= 2
+        elif key == 'Left':
+            s += 0.01
+        elif key == 'Right':
+            s -= 0.01
+        elif key == 'End':
+            p += 0.01
+        elif key == 'Home':
+            p -= 0.01
+        else:
+            print(key)
+        print('Iters:%i Zoom:%i Center:(%f,%f) Precision:%i s:%f Render Time:%f' % (iters, zoom, cx, cy, precision, s, renderTime))
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    finally:
+        abuf.release()
