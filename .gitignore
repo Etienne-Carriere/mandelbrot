@@ -1,0 +1,5 @@
+# for those 10 bajillion images
+img/
+
+*.pyc
+__pycache__/
